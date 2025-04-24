@@ -72,7 +72,7 @@ def objective(trial):
     config = {
         "hidden_size": trial.suggest_int("hidden_size", 16, 256),
         "lr": trial.suggest_float("lr", 1e-4, 1e-1, log=True),
-        "momentum": trial.suggest_float("momentum", 0.8, 0.99),
+        "momentum": trial.suggest_float("momentum", 0, 0.99),
         "num_epochs": trial.suggest_int("num_epochs", 5, 10),
     }
 
