@@ -1,0 +1,87 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import numpy as np
+import optuna
+from torch.utils.data import DataLoader, TensorDataset
+import matplotlib.pyplot as plt
+
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+NUM_REPEATS = 5  # For objective function averaging
+
+
+def get_dataloader():
+    # Generate training data
+    x_train = np.linspace(-4 * np.pi, 4 * np.pi, 800).reshape(-1, 1)
+    y_train = np.sin(x_train)
+
+    # Generate test data
+    x_test = np.linspace(-4 * np.pi, 4 * np.pi, 199).reshape(-1, 1)
+    y_test = np.sin(x_test)
+
+    # Convert to PyTorch tensors
+    train_data = TensorDataset(torch.FloatTensor(x_train), torch.FloatTensor(y_train))
+    test_data = TensorDataset(torch.FloatTensor(x_test), torch.FloatTensor(y_test))
+
+    # Create DataLoaders
+    train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
+    test_loader = DataLoader(test_data, batch_size=199, shuffle=False)
+
+    return train_loader, test_loader
+
+
+def get_model_and_optimizer(config: dict):
+    model = nn.Sequential(
+        nn.Linear(1, config["hidden_size"]),
+        nn.ReLU(),
+        nn.Linear(config["hidden_size"], 1),
+    ).to(device)
+
+    optimizer = optim.SGD(
+        model.parameters(), lr=config["lr"], momentum=config["momentum"]
+    )
+    return model, optimizer
+
+
+def train_and_eval(model, optimizer, train_loader, test_loader, config):
+    criterion = nn.MSELoss()
+    model.train()
+
+    for _ in range(config["num_epochs"]):
+        for x, y in train_loader:
+            x, y = x.to(device), y.to(device)
+            optimizer.zero_grad()
+            outputs = model(x)
+            loss = criterion(outputs, y)
+            loss.backward()
+            optimizer.step()
+
+    # Evaluation
+    model.eval()
+    with torch.no_grad():
+        x_test, y_test = next(iter(test_loader))
+        x_test, y_test = x_test.to(device), y_test.to(device)
+        predictions = model(x_test)
+        test_error = criterion(predictions, y_test).item()
+
+    return test_error
+
+
+def objective(trial):
+    config = {
+        "hidden_size": trial.suggest_int("hidden_size", 16, 256),
+        "lr": trial.suggest_float("lr", 1e-4, 1e-1, log=True),
+        "momentum": trial.suggest_float("momentum", 0.8, 0.99),
+        "num_epochs": trial.suggest_int("num_epochs", 5, 10),
+    }
+
+    train_loader, test_loader = get_dataloader()
+    total_error = 0.0
+
+    for _ in range(NUM_REPEATS):
+        model, optimizer = get_model_and_optimizer(config)
+        test_error = train_and_eval(model, optimizer, train_loader, test_loader, config)
+        total_error += test_error
+
+    return total_error / NUM_REPEATS
