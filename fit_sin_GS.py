@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 NUM_REPEATS = 5  # For objective function averaging
+FAIL_THRESHOLD = 0.5    # Terminate early if test error too large
 
 
 def get_dataloader():
@@ -83,5 +84,12 @@ def objective(trial):
         model, optimizer = get_model_and_optimizer(config)
         test_error = train_and_eval(model, optimizer, train_loader, test_loader, config)
         total_error += test_error
+
+        if test_error > FAIL_THRESHOLD:
+            trial.set_user_attr("note", f"Fail due to too large error {test_error}")
+            return np.nan
+        elif np.isnan(test_error):
+            trial.set_user_attr("note", f"Error is {test_error}")
+            return np.nan
 
     return total_error / NUM_REPEATS
