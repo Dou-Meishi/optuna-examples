@@ -74,11 +74,11 @@ def train_and_eval(model, optimizer, train_loader, test_loader, config):
 
 def objective(trial):
     config = {
-        "batch_size": trial.suggest_int("batch_size", 32, 32),
+        "batch_size": trial.suggest_int("batch_size", 16, 128, step=16),
         "hidden_size": trial.suggest_int("hidden_size", 64, 512, step=64),
         "lr": trial.suggest_float("lr", 5e-5, 5e-3, log=True),
         "momentum": trial.suggest_float("momentum", 0.8, 0.99),
-        "num_epochs": trial.suggest_int("num_epochs", 5, 10),
+        "num_epochs": trial.suggest_int("num_epochs", 500, 5000, step=500),
     }
 
     train_loader, test_loader = get_dataloader(config)
