@@ -12,7 +12,7 @@ NUM_REPEATS = 5  # For objective function averaging
 FAIL_THRESHOLD = 0.5    # Terminate early if test error too large
 
 
-def get_dataloader():
+def get_dataloader(config):
     # Generate training data
     x_train = np.linspace(-4 * np.pi, 4 * np.pi, 800).reshape(-1, 1)
     y_train = np.sin(x_train)
@@ -26,7 +26,7 @@ def get_dataloader():
     test_data = TensorDataset(torch.FloatTensor(x_test), torch.FloatTensor(y_test))
 
     # Create DataLoaders
-    train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=config["batch_size"], shuffle=True)
     test_loader = DataLoader(test_data, batch_size=199, shuffle=False)
 
     return train_loader, test_loader
@@ -58,6 +58,9 @@ def train_and_eval(model, optimizer, train_loader, test_loader, config):
             loss.backward()
             optimizer.step()
 
+            if np.isnan(loss.item()):
+                return np.nan
+
     # Evaluation
     model.eval()
     with torch.no_grad():
@@ -71,13 +74,14 @@ def train_and_eval(model, optimizer, train_loader, test_loader, config):
 
 def objective(trial):
     config = {
-        "hidden_size": trial.suggest_int("hidden_size", 16, 256),
-        "lr": trial.suggest_float("lr", 1e-4, 1e-1, log=True),
-        "momentum": trial.suggest_float("momentum", 0, 0.99),
+        "batch_size": trial.suggest_int("batch_size", 32, 32),
+        "hidden_size": trial.suggest_int("hidden_size", 64, 512, step=64),
+        "lr": trial.suggest_float("lr", 5e-5, 5e-3, log=True),
+        "momentum": trial.suggest_float("momentum", 0.8, 0.99),
         "num_epochs": trial.suggest_int("num_epochs", 5, 10),
     }
 
-    train_loader, test_loader = get_dataloader()
+    train_loader, test_loader = get_dataloader(config)
     total_error = 0.0
 
     for _ in range(NUM_REPEATS):
